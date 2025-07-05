@@ -1,11 +1,11 @@
 from __future__ import print_function
 from parser import parameter_parser
 import tensorflow as tf
+import numpy as np
 from sklearn.utils import compute_class_weight
 from sklearn.metrics import confusion_matrix
 
-tf.enable_eager_execution()
-tf.compat.v1.set_random_seed(6603)
+tf.random.set_seed(6603)
 
 print(tf.__version__)
 args = parameter_parser()
@@ -32,7 +32,8 @@ class EncoderAttention:
         self.y_test = y_test
         self.batch_size = batch_size
         self.epochs = epochs
-        self.class_weight = compute_class_weight(class_weight='balanced', classes=[0, 1], y=y_train)
+        class_weights = compute_class_weight(class_weight='balanced', classes=np.array([0, 1]), y=y_train)
+        self.class_weight = {0: class_weights[0], 1: class_weights[1]}
 
         graph2vec = tf.keras.layers.Dense(200, activation='relu', name='graph2vec')(input_dim)
         pattern1vec = tf.keras.layers.Dense(200, activation='relu', name='pattern1vec')(input_dim)
@@ -54,7 +55,7 @@ class EncoderAttention:
 
         model = tf.keras.Model(inputs=[input_dim], outputs=[prediction])
 
-        adama = tf.keras.optimizers.Adam(lr)
+        adama = tf.keras.optimizers.Adam(learning_rate=lr)
         model.compile(optimizer=adama, loss='binary_crossentropy', metrics=['accuracy'])
         model.summary()
         self.model = model

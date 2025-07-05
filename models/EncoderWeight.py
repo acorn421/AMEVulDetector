@@ -5,8 +5,7 @@ import numpy as np
 from sklearn.utils import compute_class_weight
 from sklearn.metrics import confusion_matrix
 
-tf.enable_eager_execution()
-tf.compat.v1.set_random_seed(6603)
+tf.random.set_seed(6603)
 
 print(tf.__version__)
 args = parameter_parser()
@@ -20,7 +19,10 @@ interpretable weights.
 class EncoderWeight:
     def __init__(self, graph_train, graph_test, pattern1train, pattern2train, pattern3train, pattern1test, pattern2test,
                  pattern3test, y_train, y_test, batch_size=args.batch_size, lr=args.lr, epochs=args.epochs):
-        input_dim = tf.keras.Input(shape=(1, 250), name='input')
+        graph_input = tf.keras.Input(shape=(1, 250), name='graph_input')
+        pattern1_input = tf.keras.Input(shape=(1, 250), name='pattern1_input')
+        pattern2_input = tf.keras.Input(shape=(1, 250), name='pattern2_input')
+        pattern3_input = tf.keras.Input(shape=(1, 250), name='pattern3_input')
 
         self.graph_train = graph_train
         self.graph_test = graph_test
@@ -34,21 +36,22 @@ class EncoderWeight:
         self.y_test = y_test
         self.batch_size = batch_size
         self.epochs = epochs
-        self.class_weight = compute_class_weight(class_weight='balanced', classes=[0, 1], y=y_train)
+        class_weights = compute_class_weight(class_weight='balanced', classes=np.array([0, 1]), y=y_train)
+        self.class_weight = {0: class_weights[0], 1: class_weights[1]}
 
-        graph2vec = tf.keras.layers.Dense(200, activation='relu', name='outputgraphvec')(input_dim)
+        graph2vec = tf.keras.layers.Dense(200, activation='relu', name='outputgraphvec')(graph_input)
         graphweight = tf.keras.layers.Dense(1, activation='sigmoid', name='outputgraphweight')(graph2vec)
         newgraphvec = tf.keras.layers.Multiply(name='outputnewgraphvec')([graph2vec, graphweight])
 
-        pattern1vec = tf.keras.layers.Dense(200, activation='relu', name='outputpattern1vec')(input_dim)
+        pattern1vec = tf.keras.layers.Dense(200, activation='relu', name='outputpattern1vec')(pattern1_input)
         pattern1weight = tf.keras.layers.Dense(1, activation='sigmoid', name='outputpattern1weight')(pattern1vec)
         newpattern1vec = tf.keras.layers.Multiply(name='newpattern1vec')([pattern1vec, pattern1weight])
 
-        pattern2vec = tf.keras.layers.Dense(200, activation='relu', name='outputpattern2vec')(input_dim)
+        pattern2vec = tf.keras.layers.Dense(200, activation='relu', name='outputpattern2vec')(pattern2_input)
         pattern2weight = tf.keras.layers.Dense(1, activation='sigmoid', name='outputpattern2weight')(pattern2vec)
         newpattern2vec = tf.keras.layers.Multiply(name='newpattern2vec')([pattern2vec, pattern2weight])
 
-        pattern3vec = tf.keras.layers.Dense(200, activation='relu', name='outputpattern3vec')(input_dim)
+        pattern3vec = tf.keras.layers.Dense(200, activation='relu', name='outputpattern3vec')(pattern3_input)
         pattern3weight = tf.keras.layers.Dense(1, activation='sigmoid', name='outputpattern3weight')(pattern3vec)
         newpattern3vec = tf.keras.layers.Multiply(name='newpattern3vec')([pattern3vec, pattern3weight])
 
@@ -59,9 +62,9 @@ class EncoderWeight:
 
         prediction = tf.keras.layers.Dense(1, activation='sigmoid', name='output')(finalmergevec)
 
-        model = tf.keras.Model(inputs=[input_dim], outputs=[prediction])
+        model = tf.keras.Model(inputs=[graph_input, pattern1_input, pattern2_input, pattern3_input], outputs=[prediction])
 
-        adama = tf.keras.optimizers.Adam(lr)
+        adama = tf.keras.optimizers.Adam(learning_rate=lr)
         loss = tf.keras.losses.binary_crossentropy
         model.compile(optimizer=adama, loss=loss, metrics=['accuracy'])
         model.summary()
